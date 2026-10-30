@@ -1,0 +1,9 @@
+# Datos personales: nunca se publican
+config.json
+data/
+.agents/handoffs/
+.agents/bitacora/
+.agents/PENDIENTES.md
+.claude/settings.local.json
+__pycache__/
+*.pyc

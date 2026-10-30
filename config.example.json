@@ -1,0 +1,19 @@
+{
+  "nombre": "Eva",
+  "escritorio": "~/Desktop",
+  "raices_proyectos": ["~/Desktop", "~/proyectos"],
+  "github_usuario": "tu-usuario",
+  "privados": ["cliente", "empresa", "personal", "cv"],
+  "excluir": ["Desktop", "Downloads", "Documents", "node_modules"],
+  "juegos": ["steam", "epic games"],
+  "kali": {
+    "vm": "kali-linux-virtualbox-amd64",
+    "vboxmanage": "C:/Program Files/Oracle/VirtualBox/VBoxManage.exe",
+    "ovpn_dir": "~/Downloads",
+    "ovpn": "lab_usuario.ovpn"
+  },
+  "ollama": {
+    "url": "http://localhost:11434",
+    "modelo": "qwen3:8b"
+  }
+}
