@@ -1,11 +1,27 @@
 {
   "nombre": "Eva",
   "escritorio": "~/Desktop",
-  "raices_proyectos": ["~/Desktop", "~/proyectos"],
+  "raices_proyectos": [
+    "~/Desktop",
+    "~/proyectos"
+  ],
   "github_usuario": "tu-usuario",
-  "privados": ["cliente", "empresa", "personal", "cv"],
-  "excluir": ["Desktop", "Downloads", "Documents", "node_modules"],
-  "juegos": ["steam", "epic games"],
+  "privados": [
+    "cliente",
+    "empresa",
+    "personal",
+    "cv"
+  ],
+  "excluir": [
+    "Desktop",
+    "Downloads",
+    "Documents",
+    "node_modules"
+  ],
+  "juegos": [
+    "steam",
+    "epic games"
+  ],
   "kali": {
     "vm": "kali-linux-virtualbox-amd64",
     "vboxmanage": "C:/Program Files/Oracle/VirtualBox/VBoxManage.exe",
@@ -15,5 +31,9 @@
   "ollama": {
     "url": "http://localhost:11434",
     "modelo": "qwen3:8b"
+  },
+  "energia": {
+    "watts": 40,
+    "lps_kwh": 4.0
   }
 }

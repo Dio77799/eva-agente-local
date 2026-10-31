@@ -17,8 +17,20 @@ class Shell(unittest.TestCase):
 
     def test_secciones_y_acciones_esperadas(self):
         self.assertEqual(set(servidor.SECCIONES),
-                         {"eva", "oficina", "tareas", "escritorio", "github", "kali", "perfiles", "aprende"})
+                         {"eva", "oficina", "perfiles", "cv", "portafolio", "contenido", "tareas",
+                          "escritorio", "github", "kali", "contador", "seguridad", "mejoras",
+                          "despliegue", "aprende"})
         self.assertEqual(set(servidor.ACCIONES), {"chat", "tarea_agregar", "tarea_completar"})
+
+    def test_shell_tiene_selector_de_tema(self):
+        html = servidor.shell()
+        for t in ("verde", "azul", "morado"):
+            self.assertIn(f'data-tema="{t}"', html)
+
+    def test_todas_las_secciones_en_el_menu(self):
+        html = servidor.shell()
+        for sec in servidor.SECCIONES:
+            self.assertIn(f'data-sec="{sec}"', html)
 
 
 class Fragmentos(unittest.TestCase):
@@ -39,11 +51,37 @@ class Fragmentos(unittest.TestCase):
         html = servidor.frag_perfiles()            # no hay tracker en la carpeta temporal
         self.assertIn("tracker", html.lower())
 
-    def test_oficina_lista_a_los_agentes(self):
+    def test_oficina_usa_apodos_de_los_agentes(self):
         html = servidor.frag_oficina()
         self.assertIn("Oficina de agentes", html)
-        for nombre in ("EVA", "PLANNER", "DEVELOPER", "QA", "REVIEWER"):
-            self.assertIn(nombre, html)
+        for apodo in ("MICHAEL", "DWIGHT", "JIM", "ANGELA", "OSCAR", "KELLY"):
+            self.assertIn(apodo, html)
+
+    def test_estado_personalidad_en_diseno(self):
+        estados, _ = servidor._estado_agentes("## Plan\nx\n")
+        self.assertEqual(estados["personalidad"][0], "design")
+        self.assertEqual(estados["seguridad"][0], "ok")  # Hank siempre vigilando
+
+    def test_contador_registra_y_convierte(self):
+        from eva import contador
+        base = contador.resumen()["consultas"]
+        wh = contador.registrar(36)   # 36 s a 40 W = 0.4 Wh
+        self.assertGreater(wh, 0)
+        self.assertEqual(contador.resumen()["consultas"], base + 1)
+        self.assertAlmostEqual(contador.convertir(1), 4.0)  # 1 kWh * 4 L/kWh (config de prueba)
+
+    def test_seguridad_audita_y_da_veredicto(self):
+        from eva import seguridad
+        checks = seguridad.auditar()
+        self.assertTrue(checks)
+        self.assertIn(seguridad.veredicto(checks), ("seguro", "atencion", "alerta"))
+        # El auditor confirma que el núcleo no usa dependencias de terceros.
+        dep = next(c for c in checks if "terceros" in c[0].lower())
+        self.assertEqual(dep[1], "ok")
+
+    def test_frag_contador_y_seguridad_no_rompen(self):
+        self.assertIn("Contador", servidor.frag_contador())
+        self.assertIn("Auditoría", servidor.frag_seguridad())
 
     def test_estado_agentes_segun_handoff(self):
         # Un handoff con Plan y Cambios llenos -> planner/developer LISTO, qa EN TURNO.

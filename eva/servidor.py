@@ -1,10 +1,10 @@
 """Panel web local de Eva: interactivo (tipo asistente) con estética de terminal retro.
 
 Sirve en 127.0.0.1 con la stdlib. Look CRT/fósforo (diseño propio, sin marcas de terceros),
-barra lateral + contenido que cambia sin recargar. Permite HABLAR con Eva (chat con sus
-herramientas), hacer acciones de bajo impacto (crear/completar tareas) y ver la OFICINA DE
-AGENTES con el estado de cada uno. Acciones por POST /accion/<nombre> con un token que solo
-conoce esta página (anti-CSRF) y validando Host local; todo lo dinámico se escapa.
+barra lateral agrupada + contenido que cambia sin recargar. Permite HABLAR con Eva, hacer
+acciones de bajo impacto (tareas) y ver la OFICINA DE AGENTES (con apodos) y los módulos de
+perfil (CV, portafolio, contenido), mejoras y despliegue. Acciones por POST /accion/<nombre>
+con un token que solo conoce esta página (anti-CSRF) y validando Host local; todo se escapa.
 """
 import html
 import http.server
@@ -19,14 +19,19 @@ from .comun import DATOS
 TOKEN = secrets.token_urlsafe(18)
 AGENTES_DIR = Path(__file__).resolve().parent.parent / ".agents"
 
-# Equipo visible en la Oficina. (clave, nombre, rol corto)
+# Eva es la PLATAFORMA; su equipo de agentes lleva apodos (homenaje de oficina).
+# (clave_interna, apodo, función, descripción)
 ROLES = [
-    ("eva", "EVA", "Orquestadora: reparte el trabajo y decide merge/push."),
-    ("planner", "PLANNER", "Convierte el pedido en plan + amenazas."),
-    ("developer", "DEVELOPER", "Programa en una rama, con pruebas."),
-    ("qa", "QA", "Pruebas que fallan al revertir + ataques."),
-    ("reviewer", "REVIEWER", "Pasada final de solo lectura: veredicto."),
+    ("eva", "MICHAEL", "Orquestador · jefe", "Coordina, reparte el trabajo y decide merge/push."),
+    ("planner", "DWIGHT", "Planner", "Planea y anticipa las amenazas de seguridad."),
+    ("developer", "JIM", "Developer", "Construye en una rama, con pruebas."),
+    ("qa", "ANGELA", "QA", "Rigurosa: rompe y audita (pruebas + ataques)."),
+    ("reviewer", "OSCAR", "Reviewer", "Corrige y da el veredicto final."),
+    ("seguridad", "HANK", "Seguridad", "Audita amenazas, fugas y herramientas de terceros."),
+    ("personalidad", "KELLY", "Ánimo", "Medirá cómo respondes y tu estado de ánimo para adaptar el tono. (en diseño)"),
 ]
+AVATARES = {"eva": "★", "planner": "✎", "developer": "⌨", "qa": "⚑", "reviewer": "◎",
+            "seguridad": "⛨", "personalidad": "♥"}
 # Sección del handoff que marca que cada agente ya aportó.
 APORTE = {"planner": "Plan", "developer": "Cambios", "qa": "Pruebas", "reviewer": "Revisión"}
 
@@ -46,19 +51,20 @@ background:linear-gradient(180deg,rgba(77,255,145,0),rgba(77,255,145,.06),rgba(7
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 var(--here)}50%{box-shadow:0 0 9px 2px var(--here)}}
 a{color:var(--grn)}button{cursor:pointer;font-family:inherit}
 .app{display:flex;min-height:100vh}
-.side{width:236px;flex:0 0 236px;background:var(--panel);border-right:1px solid var(--line);
-display:flex;flex-direction:column;padding:20px 12px;position:sticky;top:0;height:100vh}
-.brand{padding:4px 8px 16px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.side{width:244px;flex:0 0 244px;background:var(--panel);border-right:1px solid var(--line);
+display:flex;flex-direction:column;padding:18px 12px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{padding:4px 8px 14px;border-bottom:1px solid var(--line);margin-bottom:10px}
 .brand b{font-size:20px;color:var(--grn);text-shadow:0 0 8px var(--glow);letter-spacing:2px;display:block}
 .brand span{font-size:11px;color:var(--muted)}
 .cursor::after{content:'\\2588';margin-left:2px;animation:blink 1s step-end infinite;color:var(--grn)}
-.menu{display:flex;flex-direction:column;gap:2px}
-.item{display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:4px;color:var(--ink);
-text-decoration:none;cursor:pointer;font-size:13.5px;border:1px solid transparent;background:none;width:100%;text-align:left;font-family:inherit}
+.menu{display:flex;flex-direction:column;gap:1px}
+.grp{font-size:10px;color:var(--grn-dim);letter-spacing:.2em;text-transform:uppercase;padding:12px 10px 4px}
+.item{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:4px;color:var(--ink);
+text-decoration:none;cursor:pointer;font-size:13px;border:1px solid transparent;background:none;width:100%;text-align:left;font-family:inherit}
 .item:hover{background:var(--panel2);border-color:var(--line);color:var(--grn)}
 .item.activo{background:var(--panel2);border-color:var(--grn-dim);color:var(--grn);text-shadow:0 0 6px var(--glow)}
 .item.activo::before{content:'>';margin-right:-4px;color:var(--grn);animation:blink 1.1s step-end infinite}
-.item svg{width:18px;height:18px;flex:0 0 18px}
+.item svg{width:17px;height:17px;flex:0 0 17px}
 .side .pie{margin-top:auto;font-size:11px;color:var(--muted);padding-top:12px;border-top:1px solid var(--line)}
 .main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
 .top{background:var(--panel);border-bottom:1px solid var(--line);padding:16px 26px}
@@ -115,50 +121,75 @@ ul.lista{margin:0;padding-left:18px;line-height:1.9;color:var(--muted)}
 .ftarea select{padding:9px 10px;border:1px solid var(--line);border-radius:3px;font:inherit;background:var(--panel2);color:var(--ink)}
 .done{background:transparent;border:1px solid var(--grn-dim);color:var(--grn);border-radius:3px;width:32px;height:32px;font-size:15px;flex:0 0 32px}
 .done:hover{background:var(--grn);color:#040704}
-/* Oficina */
-.desks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px}
+.desks{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:16px}
 .desk{border:1px solid var(--line);background:var(--panel);padding:14px;position:relative;transition:border-color .2s}
 .desk:hover{border-color:var(--grn-dim)}
 .desk.jefe{border-color:var(--grn-dim);background:var(--panel2)}
 .desk .hd{display:flex;align-items:center;gap:9px;margin-bottom:8px}
 .ava{width:34px;height:34px;border:1px solid var(--grn-dim);display:flex;align-items:center;justify-content:center;color:var(--grn);font-size:16px;flex:0 0 34px}
-.desk b{color:var(--grn);letter-spacing:1px}
+.desk b{color:var(--grn);letter-spacing:1px;display:block;line-height:1.1}
+.desk .fn{color:var(--muted);font-size:11px}
 .light{width:9px;height:9px;border-radius:50%;flex:0 0 9px;margin-left:auto}
 .light.ok{--here:var(--grn);background:var(--grn);animation:pulse 2.4s infinite}
 .light.work{--here:var(--amber);background:var(--amber);animation:pulse 1s infinite}
+.light.design{--here:var(--amber);background:var(--amber);opacity:.45;animation:pulse 3.2s infinite}
 .light.off{background:#20361f}
-.desk .st{font-size:11px;text-transform:uppercase;letter-spacing:.1em}
-.desk .st.ok{color:var(--grn)}.desk .st.work{color:var(--amber)}.desk .st.off{color:var(--muted)}
+.desk .st{font-size:11px;text-transform:uppercase;letter-spacing:.1em;margin-top:2px}
+.desk .st.ok{color:var(--grn)}.desk .st.work{color:var(--amber)}.desk .st.design{color:var(--amber)}.desk .st.off{color:var(--muted)}
 .desk .rol{color:var(--muted);font-size:12px;margin-top:6px}
 .desk .task{color:var(--ink);font-size:12.5px;margin-top:6px;border-top:1px dashed var(--line);padding-top:6px;min-height:18px}
 .reg{background:#040704;border:1px solid var(--line);padding:12px 14px;font-size:12.5px;color:var(--grn);max-height:200px;overflow:auto}
 .reg .ln{padding:2px 0;border-bottom:1px dotted var(--line)}
 .reg .ln::before{content:'> ';color:var(--grn-dim)}
-@media(max-width:720px){.app{flex-direction:column}.side{width:100%;height:auto;position:static;flex-direction:row;flex-wrap:wrap;gap:3px}.brand{width:100%}.menu{flex-direction:row;flex-wrap:wrap}.item{width:auto}.side .pie{display:none}}
+.temas{display:flex;gap:9px;margin-top:10px;align-items:center}
+.temas span{font-size:10px;color:var(--muted)}
+.temas button{width:16px;height:16px;border-radius:50%;border:1px solid var(--line);cursor:pointer;padding:0}
+.temas button[data-tema=verde]{background:#4dff91}.temas button[data-tema=azul]{background:#4db8ff}.temas button[data-tema=morado]{background:#b78cff}
+@media(max-width:720px){.app{flex-direction:column}.side{width:100%;height:auto;position:static}.menu{flex-direction:row;flex-wrap:wrap}.item{width:auto}.grp{width:100%}.side .pie{display:none}}
 """
 
 ICONOS = {
     "eva": '<path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 16 0z"/><path d="M8 11h8M8 14h5"/>',
     "oficina": '<rect x="3" y="9" width="18" height="12" rx="1"/><path d="M3 9l3-5h12l3 5M8 13h3M8 17h3M15 13h1M15 17h1"/>',
+    "perfiles": '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M5 17c0-2 2-3 4-3s4 1 4 3M14 9h4M14 13h4"/>',
+    "cv": '<rect x="5" y="3" width="14" height="18" rx="1"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+    "portafolio": '<rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+    "contenido": '<path d="M4 11a9 9 0 0 1 9 9M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1.3"/>',
     "tareas": '<path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/>',
     "escritorio": '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
     "github": '<circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="9" r="2.4"/><path d="M6 8.4v7M18 11.4c0 3-4 3-9.5 5"/>',
     "kali": '<path d="M4 17l6-6-6-6M12 19h8"/>',
-    "perfiles": '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M5 17c0-2 2-3 4-3s4 1 4 3M14 9h4M14 13h4"/>',
+    "contador": '<path d="M4 20a8 8 0 1 1 16 0"/><path d="M12 20l4-6"/><circle cx="12" cy="20" r="1.3"/>',
+    "seguridad": '<path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/>',
+    "mejoras": '<path d="M12 3a6 6 0 0 0-4 10c1 1 1 2 1 3h6c0-1 0-2 1-3a6 6 0 0 0-4-10zM9 20h6"/>',
+    "despliegue": '<rect x="6" y="6" width="12" height="12" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>',
     "aprende": '<path d="M4 5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2zM8 7h8M8 11h6"/>',
 }
 META = {
     "eva": ("EVA", "Háblale y ella hace las cosas"),
     "oficina": ("OFICINA", "El equipo de agentes y su estado"),
+    "perfiles": ("CERTIFICADOS", "Tus cursos y dónde ponerlos"),
+    "cv": ("CV", "Tu currículum y certificaciones"),
+    "portafolio": ("PORTAFOLIO", "Tu sitio y qué actualizar"),
+    "contenido": ("CONTENIDO", "Posts y daily.dev"),
     "tareas": ("TAREAS", "Crea y completa tus pendientes"),
     "escritorio": ("ESCRITORIO", "Qué conviene ordenar · Eva no mueve nada"),
     "github": ("GITHUB", "Tus repositorios y qué les falta"),
     "kali": ("KALI // HTB", "La máquina virtual y la guía de la VPN"),
-    "perfiles": ("PERFILES", "Certificados y mejoras de LinkedIn/GitHub"),
+    "contador": ("CONTADOR", "Energía del chat → Lempiras"),
+    "seguridad": ("SEGURIDAD", "Hank audita amenazas y fugas"),
+    "mejoras": ("MEJORAS", "Aprendizaje: IA, agentes, infraestructura"),
+    "despliegue": ("DESPLIEGUE", "App en contenedor / Raspberry Pi 4"),
     "aprende": ("MANUAL", "Arquitectura, DDD y seguridad"),
 }
+GRUPOS = [
+    ("", ["eva", "oficina"]),
+    ("perfil", ["perfiles", "cv", "portafolio", "contenido"]),
+    ("sistema", ["tareas", "escritorio", "github", "kali"]),
+    ("control", ["contador", "seguridad"]),
+    ("laboratorio", ["mejoras", "despliegue", "aprende"]),
+]
 PRIO_SEL = {1: "alta", 2: "media", 3: "baja"}
-AVATARES = {"eva": "☰", "planner": "✎", "developer": "⌨", "qa": "⚑", "reviewer": "◎"}
 
 
 def _esc(x):
@@ -208,6 +239,18 @@ def _markdown_min(texto):
     return "".join(out)
 
 
+def _frag_md(subruta, vacio):
+    """Fragmento genérico que muestra un tracker .md local (escapado)."""
+    ruta = DATOS / subruta
+    if not ruta.exists():
+        return f'<div class="card"><p class="muted">{_esc(vacio)}</p></div>'
+    try:
+        texto = ruta.read_text(encoding="utf-8")
+    except OSError:
+        return '<div class="card"><p class="warn">No pude leer el archivo.</p></div>'
+    return '<div class="card">' + _markdown_min(texto) + "</div>"
+
+
 # ---------- lectura de la oficina (.agents) ----------
 def _ultimo_handoff():
     d = AGENTES_DIR / "handoffs"
@@ -225,7 +268,6 @@ def _seccion_llena(texto, titulo):
     m = re.search(rf"^##\s*{re.escape(titulo)}\b(.*?)(?=^##\s|\Z)", texto, re.S | re.M)
     if not m:
         return False
-    # Una línea que es solo un placeholder entre paréntesis "(pendiente ...)" no cuenta.
     reales = [ln.strip() for ln in m.group(1).splitlines()
               if ln.strip() and not re.fullmatch(r"\(.*\)", ln.strip())]
     return bool(reales)
@@ -245,6 +287,8 @@ def _estado_agentes(texto):
             estados[clave] = ("off", "EN ESPERA")
     terminado = all(estados[c][0] == "ok" for c in ("planner", "developer", "qa", "reviewer"))
     estados["eva"] = ("ok", "COORDINANDO") if texto else ("off", "EN ESPERA")
+    estados["seguridad"] = ("ok", "VIGILANDO")
+    estados["personalidad"] = ("design", "EN DISEÑO")
     return estados, terminado
 
 
@@ -331,10 +375,14 @@ def frag_oficina():
     ws = _esc(nombre_ws) if nombre_ws else "sin workstream activo"
     estado_global = "CERRADO" if terminado else ("EN CURSO" if texto else "INACTIVO")
     desks = []
-    for clave, nombre, rol in ROLES:
+    for clave, apodo, funcion, desc in ROLES:
         clase, etiqueta = estados[clave]
         if clave == "eva":
             tarea = f"Coordina: {ws}" if texto else "A la espera de un pedido."
+        elif clave == "seguridad":
+            tarea = "Vigila el sistema en todo momento. Ver módulo Seguridad."
+        elif clave == "personalidad":
+            tarea = "Apartado futuro: tono y estado de ánimo."
         elif clase == "ok":
             tarea = "✓ Aportó a este workstream."
         elif clase == "work":
@@ -343,12 +391,13 @@ def frag_oficina():
             tarea = "En espera de su turno."
         desks.append(
             f'<div class="desk {"jefe" if clave == "eva" else ""}"><div class="hd">'
-            f'<div class="ava">{AVATARES.get(clave, "•")}</div><b>{_esc(nombre)}</b>'
+            f'<div class="ava">{AVATARES.get(clave, "•")}</div>'
+            f'<div><b>{_esc(apodo)}</b><span class="fn">{_esc(funcion)}</span></div>'
             f'<span class="light {clase}"></span></div>'
             f'<div class="st {clase}">{etiqueta}</div>'
-            f'<div class="rol">{_esc(rol)}</div><div class="task">{tarea}</div></div>')
-    registro = _bitacora_reciente()
-    feed = "".join(f'<div class="ln">{_esc(ln)}</div>' for ln in registro) or '<div class="ln muted">sin actividad registrada</div>'
+            f'<div class="rol">{_esc(desc)}</div><div class="task">{tarea}</div></div>')
+    feed = "".join(f'<div class="ln">{_esc(ln)}</div>' for ln in _bitacora_reciente()) \
+        or '<div class="ln muted">sin actividad registrada</div>'
     return f"""
 <div class="tiles">
   <div class="tile"><div class="lbl">Workstream</div><div class="val" style="font-size:15px;margin-top:10px">{ws}</div></div>
@@ -356,7 +405,7 @@ def frag_oficina():
   <div class="tile"><div class="lbl">Build</div><div class="val">v{_esc(__version__)}</div><div class="det">main</div></div>
 </div>
 <div class="card"><h2>Oficina de agentes</h2>
-<p class="muted">Cada agente trabaja en su etapa y se pasa el relevo por el handoff. El semáforo indica quién ya aportó (verde), quién está en turno (ámbar) y quién espera.</p>
+<p class="muted">Eva es la plataforma; estos son sus agentes (con apodo). El semáforo indica quién ya aportó (verde), quién está en turno (ámbar) y quién espera. KELLY (ánimo) está en diseño.</p>
 <div class="desks">{"".join(desks)}</div></div>
 <div class="card"><h2>Registro de actividad</h2><div class="reg">{feed}</div></div>"""
 
@@ -405,15 +454,69 @@ def frag_kali():
 
 
 def frag_perfiles():
-    ruta = DATOS / "perfiles" / "certificados.md"
-    if not ruta.exists():
-        return ('<div class="card"><p class="muted">Aún no hay tracker de perfiles. '
-                'Suelta certificados en <code>data/perfiles/inbox/</code> y dile a Eva "nuevo certificado".</p></div>')
+    return _frag_md("perfiles/certificados.md",
+                    'Aún no hay tracker. Suelta certificados en data/perfiles/inbox/ y dile a Eva "nuevo certificado".')
+
+
+def frag_cv():
+    return _frag_md("modulos/cv.md", "Sin datos de CV todavía.")
+
+
+def frag_portafolio():
+    return _frag_md("modulos/portafolio.md", "Sin datos del portafolio todavía.")
+
+
+def frag_contenido():
+    return _frag_md("modulos/contenido.md", "Sin plan de contenido todavía.")
+
+
+def frag_contador():
+    from . import contador
+    r = contador.resumen()
+    return f"""
+<div class="tiles">
+  <div class="tile"><div class="lbl">Consultas</div><div class="val">{r['consultas']}</div><div class="det">al chat de Eva</div></div>
+  <div class="tile"><div class="lbl">Energía</div><div class="val">{r['kwh']:.4f}</div><div class="det">kWh acumulados</div></div>
+  <div class="tile"><div class="lbl">Costo</div><div class="val">L {r['lps']:.2f}</div><div class="det">{r['lps_por_consulta']:.4f} L/consulta</div></div>
+</div>
+<div class="card"><h2>Contador de energía</h2>
+<p class="muted">Estima el consumo del chat (Ollama corre el modelo en tu equipo): tiempo real de cómputo × {r['watts']:.0f} W asumidos, a L {r['lps_kwh']:.2f}/kWh. Ajusta <code>energia</code> en config.json.</p>
+<div class="fila"><span class="grow">Tiempo de cómputo acumulado</span><span>{r['segundos'] / 60:.1f} min</span></div>
+<div class="fila"><span class="grow">Watts asumidos</span><span>{r['watts']:.0f} W</span></div>
+<div class="fila"><span class="grow">Tarifa</span><span>L {r['lps_kwh']:.2f} / kWh</span></div>
+<div class="fila"><span class="grow">Midiendo desde</span><span class="muted">{_esc(r['desde'])}</span></div></div>
+<div class="card"><h2>Conversor kWh → Lempiras</h2>
+<div class="ftarea"><input id="conv" type="number" step="0.1" placeholder="kWh" data-lps="{r['lps_kwh']}"><span id="convout" class="muted">= L 0.00</span></div>
+<p class="muted">Referencia: una hora de chat continuo ≈ {r['watts'] / 1000:.3f} kWh ≈ L {r['watts'] / 1000 * r['lps_kwh']:.3f}. Útil para ver si sale rentable.</p></div>"""
+
+
+def frag_seguridad():
+    from . import seguridad
     try:
-        texto = ruta.read_text(encoding="utf-8")
-    except OSError:
-        return '<div class="card"><p class="warn">No pude leer el tracker de perfiles.</p></div>'
-    return '<div class="card">' + _markdown_min(texto) + "</div>"
+        checks = seguridad.auditar()
+        ver = seguridad.veredicto(checks)
+    except Exception:
+        return '<div class="card"><p class="warn">No pude completar la auditoría.</p></div>'
+    filas = []
+    for nombre, estado, detalle in checks:
+        cls = "ok" if estado == "ok" else "warn"
+        simbolo = "✓" if estado == "ok" else ("!" if estado == "warn" else "✕")
+        filas.append(f'<div class="fila"><span class="{cls}" style="flex:0 0 18px">{simbolo}</span>'
+                     f'<span class="grow">{_esc(nombre)}</span><span class="muted">{_esc(detalle)}</span></div>')
+    titulo = {"seguro": "SISTEMA SEGURO", "atencion": "REVISAR AVISOS", "alerta": "⚠ ATENCIÓN"}[ver]
+    return (f'<div class="tiles"><div class="tile"><div class="lbl">Veredicto de Hank</div>'
+            f'<div class="val" style="font-size:18px;margin-top:9px">{titulo}</div></div></div>'
+            f'<div class="card"><h2>Auditoría de seguridad</h2>'
+            f'<p class="muted">Revisa que Eva no tenga amenazas, no filtre información ni use herramientas de terceros que afecten. Solo lee el código local; no se conecta a nada.</p>'
+            f'{"".join(filas)}</div>')
+
+
+def frag_mejoras():
+    return _frag_md("modulos/mejoras.md", "Sin roadmap de mejoras todavía.")
+
+
+def frag_despliegue():
+    return _frag_md("modulos/despliegue.md", "Sin plan de despliegue todavía.")
 
 
 def frag_aprende():
@@ -425,8 +528,8 @@ def frag_aprende():
         ("Inversión de dependencias", "El detalle (JSON) depende de la interfaz del dominio, no al revés."),
     ]
     filas_gloss = "".join(f"<dt>{t}</dt><dd>{d}</dd>" for t, d in gloss)
-    pasos = [("planner", "plan + amenazas"), ("developer", "código"), ("qa", "pruebas"),
-             ("reviewer", "veredicto"), ("tú", "merge / push")]
+    pasos = [("DWIGHT", "plan + amenazas"), ("JIM", "código"), ("ANGELA", "pruebas"),
+             ("OSCAR", "veredicto"), ("tú", "merge / push")]
     flow = "".join(f'<div class="step"><b>{_esc(r)}</b><span>{_esc(h)}</span></div>' for r, h in pasos)
     return f"""
 <div class="card"><h2>Arquitectura por capas (piloto DDD-lite en tareas)</h2>
@@ -447,8 +550,11 @@ def frag_aprende():
 
 
 SECCIONES = {
-    "eva": frag_eva, "oficina": frag_oficina, "tareas": frag_tareas, "escritorio": frag_escritorio,
-    "github": frag_github, "kali": frag_kali, "perfiles": frag_perfiles, "aprende": frag_aprende,
+    "eva": frag_eva, "oficina": frag_oficina, "perfiles": frag_perfiles, "cv": frag_cv,
+    "portafolio": frag_portafolio, "contenido": frag_contenido, "tareas": frag_tareas,
+    "escritorio": frag_escritorio, "github": frag_github, "kali": frag_kali,
+    "contador": frag_contador, "seguridad": frag_seguridad,
+    "mejoras": frag_mejoras, "despliegue": frag_despliegue, "aprende": frag_aprende,
 }
 
 
@@ -483,10 +589,15 @@ ACCIONES = {
 
 
 def _menu():
-    return "".join(
-        f'<button class="item" data-sec="{s}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        f'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{ICONOS[s]}</svg>{_esc(META[s][0])}</button>'
-        for s in SECCIONES)
+    out = []
+    for etiqueta, claves in GRUPOS:
+        if etiqueta:
+            out.append(f'<div class="grp">{_esc(etiqueta)}</div>')
+        for s in claves:
+            out.append(
+                f'<button class="item" data-sec="{s}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+                f'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{ICONOS[s]}</svg>{_esc(META[s][0])}</button>')
+    return "".join(out)
 
 
 def shell():
@@ -496,7 +607,8 @@ def shell():
 <style>{ESTILO}</style></head><body><div class="crt"></div><div class="app">
 <nav class="side"><div class="brand"><b>EVA<span class="cursor"></span></b><span>v{_esc(__version__)} · sistema local</span></div>
 <div class="menu">{_menu()}</div>
-<div class="pie">[ TERMINAL LOCAL ]<br>nada sale de tu equipo.</div></nav>
+<div class="pie">[ TERMINAL LOCAL ]<br>nada sale de tu equipo.
+<div class="temas"><span>tema</span><button data-tema="verde" title="verde"></button><button data-tema="azul" title="azul"></button><button data-tema="morado" title="morado"></button></div></div></nav>
 <div class="main"><div class="top"><h1 id="st">EVA</h1><p id="ss">Háblale y ella hace las cosas</p></div>
 <div class="cont" id="cont"><p class="cargando">cargando…</p></div></div></div>
 <script>
@@ -529,7 +641,18 @@ function activar(){{
   const cf=document.getElementById('chatform');
   if(cf){{cf.addEventListener('submit',e=>{{e.preventDefault();enviarChat(document.getElementById('chatin').value);}});
     cont.querySelectorAll('.sug').forEach(b=>b.addEventListener('click',()=>enviarChat(b.textContent)));pintarChat();}}
+  const cv=document.getElementById('conv');
+  if(cv)cv.addEventListener('input',()=>{{const l=parseFloat(cv.dataset.lps)||0,k=parseFloat(cv.value)||0;
+    document.getElementById('convout').textContent='= L '+(k*l).toFixed(2);}});
 }}
+const TEMAS={{verde:{{grn:'#4dff91',dim:'#1f6b42',glow:'rgba(77,255,145,.55)',ink:'#bdf5d2',muted:'#5c8a6d'}},
+azul:{{grn:'#4db8ff',dim:'#1f5a7a',glow:'rgba(77,184,255,.55)',ink:'#bfe3ff',muted:'#5c7f9a'}},
+morado:{{grn:'#b78cff',dim:'#5a3f8a',glow:'rgba(183,140,255,.55)',ink:'#e0d2ff',muted:'#8a7cab'}}}};
+function tema(n){{const t=TEMAS[n]||TEMAS.verde,r=document.documentElement.style;
+  r.setProperty('--grn',t.grn);r.setProperty('--grn-dim',t.dim);r.setProperty('--glow',t.glow);
+  r.setProperty('--ink',t.ink);r.setProperty('--muted',t.muted);try{{localStorage.setItem('eva-tema',n);}}catch(_){{}}}}
+document.querySelectorAll('.temas button').forEach(b=>b.addEventListener('click',()=>tema(b.dataset.tema)));
+try{{tema(localStorage.getItem('eva-tema')||'verde');}}catch(_){{tema('verde');}}
 async function cargar(sec){{if(!META[sec])sec='eva';SEC=sec;
   document.querySelectorAll('.item').forEach(a=>a.classList.toggle('activo',a.dataset.sec===sec));
   st.textContent=META[sec][0];ss.textContent=META[sec][1];
