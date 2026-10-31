@@ -154,6 +154,41 @@ def _herramientas():
     return {n: f[0] for n, f in funciones.items()}, esquemas
 
 
+def _turno(modelo, mensajes, funciones, esquemas):
+    """Una pregunta del usuario -> hasta 5 rondas de herramientas -> mensaje final de Eva.
+    Modifica `mensajes` en sitio y devuelve el último mensaje del asistente."""
+    r = {}
+    for _ in range(5):
+        r = _post("/api/chat", {"model": modelo, "messages": mensajes, "tools": esquemas,
+                                "stream": False, "think": False})["message"]
+        mensajes.append(r)
+        llamadas = r.get("tool_calls") or []
+        if not llamadas:
+            break
+        for ll in llamadas:
+            nombre, args = ll["function"]["name"], ll["function"].get("arguments") or {}
+            salida = _ejecutar(funciones, nombre, args if isinstance(args, dict) else {})
+            bitacora("herramienta", nombre=nombre, args=args)
+            mensajes.append({"role": "tool", "tool_name": nombre, "content": salida})
+    return r
+
+
+def responder(historial):
+    """Una vuelta de chat para la interfaz web. `historial` = lista de {role, content}
+    (user/assistant, sin system). Devuelve el texto de respuesta de Eva (string)."""
+    if not disponible():
+        return "Ollama no está corriendo. Ábrelo (o `ollama serve`) y vuelve a intentar."
+    funciones, esquemas = _herramientas()
+    limpio = [{"role": m["role"], "content": str(m.get("content", ""))[:4000]}
+              for m in (historial or []) if m.get("role") in ("user", "assistant") and m.get("content")]
+    mensajes = [{"role": "system", "content": SISTEMA}] + limpio[-20:]
+    try:
+        r = _turno(config()["ollama"]["modelo"], mensajes, funciones, esquemas)
+    except (urllib.error.URLError, OSError, KeyError, ValueError):
+        return "No pude hablar con Ollama ahora. Revisa que esté corriendo."
+    return (r.get("content") or "").strip() or "(sin respuesta)"
+
+
 def conversar():
     if not disponible():
         print("Ollama no está corriendo. Ábrelo (o `ollama serve`) y vuelve a intentar.")
@@ -172,18 +207,7 @@ def conversar():
         if not texto:
             continue
         mensajes.append({"role": "user", "content": texto})
-        for _ in range(5):  # máximo 5 rondas de herramientas por pregunta
-            r = _post("/api/chat", {"model": modelo, "messages": mensajes, "tools": esquemas,
-                                    "stream": False, "think": False})["message"]
-            mensajes.append(r)
-            llamadas = r.get("tool_calls") or []
-            if not llamadas:
-                break
-            for ll in llamadas:
-                nombre, args = ll["function"]["name"], ll["function"].get("arguments") or {}
-                salida = _ejecutar(funciones, nombre, args if isinstance(args, dict) else {})
-                bitacora("herramienta", nombre=nombre, args=args)
-                mensajes.append({"role": "tool", "tool_name": nombre, "content": salida})
+        r = _turno(modelo, mensajes, funciones, esquemas)
         print(f"\nEva > {r.get('content', '').strip()}\n")
     if descargar_modelo():
         print("Modelo liberado de memoria para ahorrar energía. Hasta luego.")
