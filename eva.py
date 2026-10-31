@@ -109,11 +109,17 @@ def main():
     h.add_argument("--sistema", default="")
     h.add_argument("--llm", action="store_true", help="pulir el post con Ollama")
 
+    sub.add_parser("servidor", help="abrir el panel web local (solo lectura)").add_argument(
+        "--puerto", type=int, default=8750)
+
     a = p.parse_args()
     if a.cmd == "hoy":
         print(resumen.hoy(a.rapido))
     elif a.cmd == "chat":
         llm.conversar()
+    elif a.cmd == "servidor":
+        from eva import servidor
+        servidor.iniciar(a.puerto)
     elif a.cmd in ("htb",) and a.accion != "ver" and not a.nombre:
         p.error("indica el nombre de la máquina")
     elif a.cmd:
