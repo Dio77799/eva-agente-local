@@ -45,11 +45,15 @@ def generar(prompt):
 
 
 def descargar_modelo():
-    """Libera el modelo de la memoria (keep_alive 0) para ahorrar energía al salir del chat."""
+    """Libera el modelo de la memoria (keep_alive 0) para ahorrar energía al salir del chat.
+
+    Devuelve True si Ollama confirmó la descarga, False si no respondió.
+    """
     try:
         _post("/api/generate", {"model": config()["ollama"]["modelo"], "keep_alive": 0}, timeout=10)
+        return True
     except (urllib.error.URLError, OSError, KeyError, ValueError):
-        pass  # si Ollama ya no está o no responde, no pasa nada
+        return False  # si Ollama ya no está o no responde, no pasa nada
 
 
 def _ejecutar(funciones, nombre, args):
@@ -181,5 +185,7 @@ def conversar():
                 bitacora("herramienta", nombre=nombre, args=args)
                 mensajes.append({"role": "tool", "tool_name": nombre, "content": salida})
         print(f"\nEva > {r.get('content', '').strip()}\n")
-    descargar_modelo()
-    print("Modelo liberado de memoria para ahorrar energía. Hasta luego.")
+    if descargar_modelo():
+        print("Modelo liberado de memoria para ahorrar energía. Hasta luego.")
+    else:
+        print("Hasta luego. (No pude confirmar la descarga del modelo; revisa Ollama.)")
