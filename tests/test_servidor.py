@@ -17,14 +17,14 @@ class Shell(unittest.TestCase):
 
     def test_secciones_y_acciones_esperadas(self):
         self.assertEqual(set(servidor.SECCIONES),
-                         {"eva", "tareas", "escritorio", "github", "kali", "perfiles", "aprende"})
+                         {"eva", "oficina", "tareas", "escritorio", "github", "kali", "perfiles", "aprende"})
         self.assertEqual(set(servidor.ACCIONES), {"chat", "tarea_agregar", "tarea_completar"})
 
 
 class Fragmentos(unittest.TestCase):
     def test_eva_tiene_chat(self):
         html = servidor.frag_eva()
-        self.assertIn("Habla con Eva", html)
+        self.assertIn("Terminal de Eva", html)
         self.assertIn('id="chatform"', html)
 
     def test_tareas_form_y_escapa_html(self):
@@ -38,6 +38,29 @@ class Fragmentos(unittest.TestCase):
     def test_perfiles_sin_archivo_no_rompe(self):
         html = servidor.frag_perfiles()            # no hay tracker en la carpeta temporal
         self.assertIn("tracker", html.lower())
+
+    def test_oficina_lista_a_los_agentes(self):
+        html = servidor.frag_oficina()
+        self.assertIn("Oficina de agentes", html)
+        for nombre in ("EVA", "PLANNER", "DEVELOPER", "QA", "REVIEWER"):
+            self.assertIn(nombre, html)
+
+    def test_estado_agentes_segun_handoff(self):
+        # Un handoff con Plan y Cambios llenos -> planner/developer LISTO, qa EN TURNO.
+        texto = "## Plan\nhacer x\n## Amenazas\nninguna\n## Cambios\ncommit y\n## Pruebas\n## Revisión\n"
+        estados, terminado = servidor._estado_agentes(texto)
+        self.assertEqual(estados["planner"][0], "ok")
+        self.assertEqual(estados["developer"][0], "ok")
+        self.assertEqual(estados["qa"][0], "work")
+        self.assertEqual(estados["reviewer"][0], "off")
+        self.assertFalse(terminado)
+
+    def test_placeholder_no_cuenta_como_aporte(self):
+        # "(pendiente reviewer)" no debe marcar al reviewer como LISTO.
+        texto = "## Plan\nx\n## Cambios\ny\n## Pruebas\nz\n## Revisión\n(pendiente reviewer)\n"
+        estados, terminado = servidor._estado_agentes(texto)
+        self.assertEqual(estados["reviewer"][0], "work")
+        self.assertFalse(terminado)
 
     def test_markdown_min_escapa(self):
         html = servidor._markdown_min("## Título\n- <b>x</b>\n| a | b |")
