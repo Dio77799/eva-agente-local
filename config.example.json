@@ -35,5 +35,7 @@
   "energia": {
     "watts": 40,
     "lps_kwh": 4.0
-  }
+  },
+  "cv_archivo": "~/Downloads/CV.html",
+  "portafolio_url": "https://tu-usuario.github.io/portafolio/"
 }

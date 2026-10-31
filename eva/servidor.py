@@ -14,7 +14,7 @@ import secrets
 from pathlib import Path
 
 from . import __version__, escritorio, kali, tareas
-from .comun import DATOS
+from .comun import DATOS, config, expandir
 
 TOKEN = secrets.token_urlsafe(18)
 AGENTES_DIR = Path(__file__).resolve().parent.parent / ".agents"
@@ -145,6 +145,8 @@ ul.lista{margin:0;padding-left:18px;line-height:1.9;color:var(--muted)}
 .temas span{font-size:10px;color:var(--muted)}
 .temas button{width:16px;height:16px;border-radius:50%;border:1px solid var(--line);cursor:pointer;padding:0}
 .temas button[data-tema=verde]{background:#4dff91}.temas button[data-tema=azul]{background:#4db8ff}.temas button[data-tema=morado]{background:#b78cff}
+.temas button[data-tema=dinamico]{background:conic-gradient(#4dff91,#4db8ff,#b78cff,#4dff91)}
+.card,.tile,.item,.desk,.light,.chatform input,.ftarea input,h1,h2,.pill,.chip,.bar>i,.brand b,.top h1{transition:color .6s,background-color .6s,border-color .6s,box-shadow .6s}
 @media(max-width:720px){.app{flex-direction:column}.side{width:100%;height:auto;position:static}.menu{flex-direction:row;flex-wrap:wrap}.item{width:auto}.grp{width:100%}.side .pie{display:none}}
 """
 
@@ -459,7 +461,15 @@ def frag_perfiles():
 
 
 def frag_cv():
-    return _frag_md("modulos/cv.md", "Sin datos de CV todavía.")
+    try:
+        url = _esc(config().get("portafolio_url", "") or "#")
+    except Exception:
+        url = "#"
+    cab = (f'<div class="card"><h2>Mi CV</h2>'
+           f'<p><a href="/descargar/cv" target="_blank" rel="noopener">📄 Ver / descargar CV</a>'
+           f'&nbsp; · &nbsp;<a href="{url}" target="_blank" rel="noopener">🌐 Ver portafolio actualizado</a></p>'
+           f'<p class="muted">El CV también está en tu carpeta de Descargas. Para PDF: ábrelo y usa Imprimir → Guardar como PDF.</p></div>')
+    return cab + _frag_md("modulos/cv.md", "Sin datos de CV todavía.")
 
 
 def frag_portafolio():
@@ -608,7 +618,7 @@ def shell():
 <nav class="side"><div class="brand"><b>EVA<span class="cursor"></span></b><span>v{_esc(__version__)} · sistema local</span></div>
 <div class="menu">{_menu()}</div>
 <div class="pie">[ TERMINAL LOCAL ]<br>nada sale de tu equipo.
-<div class="temas"><span>tema</span><button data-tema="verde" title="verde"></button><button data-tema="azul" title="azul"></button><button data-tema="morado" title="morado"></button></div></div></nav>
+<div class="temas"><span>tema</span><button data-tema="verde" title="verde"></button><button data-tema="azul" title="azul"></button><button data-tema="morado" title="morado"></button><button data-tema="dinamico" title="dinámico (cicla los 3)"></button></div></div></nav>
 <div class="main"><div class="top"><h1 id="st">EVA</h1><p id="ss">Háblale y ella hace las cosas</p></div>
 <div class="cont" id="cont"><p class="cargando">cargando…</p></div></div></div>
 <script>
@@ -647,10 +657,15 @@ function activar(){{
 }}
 const TEMAS={{verde:{{grn:'#4dff91',dim:'#1f6b42',glow:'rgba(77,255,145,.55)',ink:'#bdf5d2',muted:'#5c8a6d'}},
 azul:{{grn:'#4db8ff',dim:'#1f5a7a',glow:'rgba(77,184,255,.55)',ink:'#bfe3ff',muted:'#5c7f9a'}},
-morado:{{grn:'#b78cff',dim:'#5a3f8a',glow:'rgba(183,140,255,.55)',ink:'#e0d2ff',muted:'#8a7cab'}}}};
-function tema(n){{const t=TEMAS[n]||TEMAS.verde,r=document.documentElement.style;
+morado:{{grn:'#b78cff',dim:'#5a3f8a',glow:'rgba(183,140,255,.55)',ink:'#e0d2ff',muted:'#8a7cab'}}}},ORDEN=['verde','azul','morado'];
+let ciclo=null;
+function aplicar(n){{const t=TEMAS[n]||TEMAS.verde,r=document.documentElement.style;
   r.setProperty('--grn',t.grn);r.setProperty('--grn-dim',t.dim);r.setProperty('--glow',t.glow);
-  r.setProperty('--ink',t.ink);r.setProperty('--muted',t.muted);try{{localStorage.setItem('eva-tema',n);}}catch(_){{}}}}
+  r.setProperty('--ink',t.ink);r.setProperty('--muted',t.muted);}}
+function tema(n){{if(ciclo){{clearInterval(ciclo);ciclo=null;}}
+  if(n==='dinamico'){{let i=0;aplicar(ORDEN[0]);ciclo=setInterval(()=>{{i=(i+1)%ORDEN.length;aplicar(ORDEN[i]);}},2600);}}
+  else aplicar(n);
+  try{{localStorage.setItem('eva-tema',n);}}catch(_){{}}}}
 document.querySelectorAll('.temas button').forEach(b=>b.addEventListener('click',()=>tema(b.dataset.tema)));
 try{{tema(localStorage.getItem('eva-tema')||'verde');}}catch(_){{tema('verde');}}
 async function cargar(sec){{if(!META[sec])sec='eva';SEC=sec;
@@ -687,8 +702,26 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             self._responder(shell())
         elif ruta.startswith("/seccion/") and ruta[len("/seccion/"):] in SECCIONES:
             self._responder(SECCIONES[ruta[len("/seccion/"):]]())
+        elif ruta == "/descargar/cv":
+            self._servir_cv()
         else:
             self.send_error(404, "No encontrado")
+
+    def _servir_cv(self):
+        # Sirve el ÚNICO archivo configurado (cv_archivo); la URL no lleva ninguna ruta.
+        try:
+            cv = expandir(config().get("cv_archivo", ""))
+            datos = cv.read_bytes() if cv and cv.is_file() else None
+        except OSError:
+            datos = None
+        if not datos:
+            self.send_error(404, "CV no disponible (revisa cv_archivo en config.json)")
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(datos)))
+        self.end_headers()
+        self.wfile.write(datos)
 
     def do_POST(self):
         ruta = self.path.split("?")[0]

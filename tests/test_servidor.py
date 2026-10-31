@@ -24,8 +24,17 @@ class Shell(unittest.TestCase):
 
     def test_shell_tiene_selector_de_tema(self):
         html = servidor.shell()
-        for t in ("verde", "azul", "morado"):
+        for t in ("verde", "azul", "morado", "dinamico"):
             self.assertIn(f'data-tema="{t}"', html)
+
+    def test_cv_tiene_descarga_y_portafolio(self):
+        html = servidor.frag_cv()
+        self.assertIn("/descargar/cv", html)
+        self.assertIn("portafolio", html.lower())
+
+    def test_ruta_descargar_cv_en_el_handler(self):
+        import inspect
+        self.assertIn("/descargar/cv", inspect.getsource(servidor._Handler.do_GET))
 
     def test_todas_las_secciones_en_el_menu(self):
         html = servidor.shell()
