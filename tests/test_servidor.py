@@ -18,8 +18,8 @@ class Shell(unittest.TestCase):
     def test_secciones_y_acciones_esperadas(self):
         self.assertEqual(set(servidor.SECCIONES),
                          {"eva", "oficina", "perfiles", "cv", "portafolio", "contenido", "tareas",
-                          "escritorio", "github", "kali", "contador", "seguridad", "mejoras",
-                          "despliegue", "aprende"})
+                          "escritorio", "github", "kali", "contador", "seguridad", "libreria",
+                          "mejoras", "despliegue", "aprende"})
         self.assertEqual(set(servidor.ACCIONES), {"chat", "tarea_agregar", "tarea_completar"})
 
     def test_shell_tiene_selector_de_tema(self):
@@ -91,6 +91,11 @@ class Fragmentos(unittest.TestCase):
     def test_frag_contador_y_seguridad_no_rompen(self):
         self.assertIn("Contador", servidor.frag_contador())
         self.assertIn("Auditoría", servidor.frag_seguridad())
+
+    def test_libreria_muestra_historico(self):
+        html = servidor.frag_libreria()
+        self.assertIn("Histórico", html)
+        self.assertIn("Arquitectura", html)  # docs/historia/01-arquitectura.md
 
     def test_estado_agentes_segun_handoff(self):
         # Un handoff con Plan y Cambios llenos -> planner/developer LISTO, qa EN TURNO.

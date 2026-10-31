@@ -17,7 +17,9 @@ from . import __version__, escritorio, kali, tareas
 from .comun import DATOS, config, expandir
 
 TOKEN = secrets.token_urlsafe(18)
-AGENTES_DIR = Path(__file__).resolve().parent.parent / ".agents"
+RAIZ = Path(__file__).resolve().parent.parent
+AGENTES_DIR = RAIZ / ".agents"
+HISTORIA_DIR = RAIZ / "docs" / "historia"
 
 # Eva es la PLATAFORMA; su equipo de agentes lleva apodos (homenaje de oficina).
 # (clave_interna, apodo, función, descripción)
@@ -163,6 +165,7 @@ ICONOS = {
     "kali": '<path d="M4 17l6-6-6-6M12 19h8"/>',
     "contador": '<path d="M4 20a8 8 0 1 1 16 0"/><path d="M12 20l4-6"/><circle cx="12" cy="20" r="1.3"/>',
     "seguridad": '<path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/>',
+    "libreria": '<path d="M4 4h5v16H4zM10 4h4v16h-4zM15 5l4 1-3 14-4-1z"/>',
     "mejoras": '<path d="M12 3a6 6 0 0 0-4 10c1 1 1 2 1 3h6c0-1 0-2 1-3a6 6 0 0 0-4-10zM9 20h6"/>',
     "despliegue": '<rect x="6" y="6" width="12" height="12" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>',
     "aprende": '<path d="M4 5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2zM8 7h8M8 11h6"/>',
@@ -180,6 +183,7 @@ META = {
     "kali": ("KALI // HTB", "La máquina virtual y la guía de la VPN"),
     "contador": ("CONTADOR", "Energía del chat → Lempiras"),
     "seguridad": ("SEGURIDAD", "Hank audita amenazas y fugas"),
+    "libreria": ("LIBRERÍA", "Histórico técnico por categoría"),
     "mejoras": ("MEJORAS", "Aprendizaje: IA, agentes, infraestructura"),
     "despliegue": ("DESPLIEGUE", "App en contenedor / Raspberry Pi 4"),
     "aprende": ("MANUAL", "Arquitectura, DDD y seguridad"),
@@ -189,7 +193,7 @@ GRUPOS = [
     ("perfil", ["perfiles", "cv", "portafolio", "contenido"]),
     ("sistema", ["tareas", "escritorio", "github", "kali"]),
     ("control", ["contador", "seguridad"]),
-    ("laboratorio", ["mejoras", "despliegue", "aprende"]),
+    ("laboratorio", ["libreria", "mejoras", "despliegue", "aprende"]),
 ]
 PRIO_SEL = {1: "alta", 2: "media", 3: "baja"}
 
@@ -521,6 +525,21 @@ def frag_seguridad():
             f'{"".join(filas)}</div>')
 
 
+def frag_libreria():
+    archivos = sorted(HISTORIA_DIR.glob("*.md")) if HISTORIA_DIR.exists() else []
+    cards = []
+    for f in archivos:
+        try:
+            cards.append('<div class="card">' + _markdown_min(f.read_text(encoding="utf-8")) + "</div>")
+        except OSError:
+            continue
+    if not cards:
+        return '<div class="card"><p class="muted">Aún no hay histórico (docs/historia/).</p></div>'
+    intro = ('<p class="muted">Histórico técnico de cómo construimos Eva, por categoría: '
+             'qué se hizo a nivel técnico y para qué sirve.</p>')
+    return intro + "".join(cards)
+
+
 def frag_mejoras():
     return _frag_md("modulos/mejoras.md", "Sin roadmap de mejoras todavía.")
 
@@ -564,7 +583,7 @@ SECCIONES = {
     "portafolio": frag_portafolio, "contenido": frag_contenido, "tareas": frag_tareas,
     "escritorio": frag_escritorio, "github": frag_github, "kali": frag_kali,
     "contador": frag_contador, "seguridad": frag_seguridad,
-    "mejoras": frag_mejoras, "despliegue": frag_despliegue, "aprende": frag_aprende,
+    "libreria": frag_libreria, "mejoras": frag_mejoras, "despliegue": frag_despliegue, "aprende": frag_aprende,
 }
 
 
