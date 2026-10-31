@@ -2,7 +2,7 @@
 delega en las capas dominio/aplicación/infraestructura (piloto DDD-lite).
 
 Quien llame a `tareas.agregar/listar/completar/formato` no cambia: sigue recibiendo
-los mismos dicts. Debajo, la lógica vive ahora en capas separadas y probables solas.
+los mismos dicts. Debajo, la lógica vive ahora en capas separadas y probadas solas.
 """
 from .aplicacion.servicio_tareas import ServicioTareas
 from .comun import ahora, bitacora

@@ -46,7 +46,7 @@ class Tarea:
     prioridad: Prioridad = Prioridad.MEDIA
     estado: str = "pendiente"
     creada: str = ""
-    hecha: str = None
+    hecha: "str | None" = None
     notas: str = ""
 
     def __post_init__(self):

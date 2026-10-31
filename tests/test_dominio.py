@@ -71,6 +71,13 @@ class CasosDeUso(unittest.TestCase):
     def test_completar_inexistente_devuelve_none(self):
         self.assertIsNone(self.srv.completar(999))
 
+    def test_area_vacia_no_filtra_y_area_inexistente_no_coincide(self):
+        self.srv.agregar("g", "general")
+        self.srv.agregar("h", "htb")
+        self.assertEqual(len(self.srv.listar(area="")), 2)   # "" = sin filtro
+        self.assertEqual(len(self.srv.listar(area=None)), 2)  # None = sin filtro
+        self.assertEqual(self.srv.listar(area="noexiste"), [])  # inexistente: nada
+
 
 if __name__ == "__main__":
     unittest.main()

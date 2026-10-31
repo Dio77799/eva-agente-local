@@ -1,6 +1,6 @@
 """Casos de uso de tareas. Recibe el repositorio y el reloj inyectados (DI),
 así se prueba con un repo en memoria y sin depender de la hora real."""
-from ..dominio.tarea import Area, Tarea
+from ..dominio.tarea import Tarea
 
 
 class ServicioTareas:
@@ -23,9 +23,9 @@ class ServicioTareas:
 
     def listar(self, area=None, todas=False):
         tareas = self.repo.listar()
-        if area is not None:
-            objetivo = Area.coerce(area)
-            tareas = [t for t in tareas if t.area == objetivo]
+        if area:  # None o "" = sin filtro; un área inexistente no coincide con ninguna
+            objetivo = str(area)
+            tareas = [t for t in tareas if t.area.value == objetivo]
         if not todas:
             tareas = [t for t in tareas if t.pendiente]
         return sorted(tareas, key=lambda t: (not t.pendiente, int(t.prioridad), t.id))
