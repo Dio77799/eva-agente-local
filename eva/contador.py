@@ -14,7 +14,12 @@ def _cfg():
 
 
 def _estado():
-    return leer_json("contador.json", {"consultas": 0, "wh": 0.0, "segundos": 0.0, "desde": ahora()})
+    defecto = {"consultas": 0, "wh": 0.0, "segundos": 0.0, "desde": ahora()}
+    try:
+        d = leer_json("contador.json", defecto)
+        return d if isinstance(d, dict) else defecto
+    except (ValueError, OSError):  # archivo corrupto: se empieza de nuevo sin romper
+        return defecto
 
 
 def registrar(segundos):
