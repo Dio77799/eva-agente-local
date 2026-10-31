@@ -13,7 +13,8 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 sys.stdout.reconfigure(encoding="utf-8")
 
-NUCLEO = [RAIZ / "eva.py", *sorted((RAIZ / "eva").glob("*.py"))]
+NUCLEO = [RAIZ / "eva.py", *sorted(p for p in (RAIZ / "eva").rglob("*.py")
+                                   if "__pycache__" not in p.parts)]
 PERSONALES = ["config.json", "data/x", ".agents/handoffs/x", ".agents/bitacora/x", ".agents/PENDIENTES.md"]
 fallos = []
 

@@ -21,6 +21,12 @@ class Pagina(unittest.TestCase):
         self.assertNotIn("<script>alert(1)</script>", html)
         self.assertIn("&lt;script&gt;", html)
 
+    def test_pagina_aprende_tiene_secciones_clave(self):
+        html = servidor.pagina_aprende()
+        self.assertIn("Entender Eva", html)
+        for seccion in ("Dominio", "Aplicación", "Infraestructura", "Glosario", "DDD"):
+            self.assertIn(seccion, html)
+
     def test_solo_escucha_en_localhost(self):
         import inspect
         fuente = inspect.getsource(servidor.iniciar)
