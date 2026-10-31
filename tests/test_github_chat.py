@@ -133,10 +133,14 @@ class AuditarGithubAtaques(unittest.TestCase):
         ])()
         self.assertEqual(salida.count("PRIVADOS"), 1)
 
-    def test_gh_falla_no_cuelga_y_lanza_error_claro(self):
-        auditar = self._auditar([], returncode=1, stderr="HTTP 401: Bad credentials")
-        with self.assertRaises(RuntimeError) as ctx:
-            auditar()
-        # conversar() lo convierte en «Error en auditar_github: gh no respondió ...».
-        # Que incluya stderr es deuda conocida (NORMAS §3.9), fuera de alcance.
-        self.assertTrue(str(ctx.exception).startswith("gh no respondió"))
+    def test_gh_falla_no_cuelga_ni_filtra_stderr(self):
+        # Desde v0.2.0 el stderr de gh ya NO viaja en la excepción (NORMAS §3.9):
+        # va solo a la consola del operador y el mensaje es genérico.
+        import sys
+        from unittest import mock
+        auditar = self._auditar([], returncode=1, stderr="HTTP 401: token ghp_PISTA")
+        with mock.patch.object(sys, "stderr"):
+            with self.assertRaises(RuntimeError) as ctx:
+                auditar()
+        self.assertNotIn("ghp_PISTA", str(ctx.exception))
+        self.assertNotIn("401", str(ctx.exception))
