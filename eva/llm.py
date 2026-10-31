@@ -182,10 +182,17 @@ def responder(historial):
     limpio = [{"role": m["role"], "content": str(m.get("content", ""))[:4000]}
               for m in (historial or []) if m.get("role") in ("user", "assistant") and m.get("content")]
     mensajes = [{"role": "system", "content": SISTEMA}] + limpio[-20:]
+    import time
+    t0 = time.monotonic()
     try:
         r = _turno(config()["ollama"]["modelo"], mensajes, funciones, esquemas)
     except (urllib.error.URLError, OSError, KeyError, ValueError):
         return "No pude hablar con Ollama ahora. Revisa que esté corriendo."
+    try:  # registra el consumo estimado (tiempo real de cómputo)
+        from . import contador
+        contador.registrar(time.monotonic() - t0)
+    except Exception:
+        pass
     return (r.get("content") or "").strip() or "(sin respuesta)"
 
 

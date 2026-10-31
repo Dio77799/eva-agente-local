@@ -27,9 +27,11 @@ ROLES = [
     ("developer", "JIM", "Developer", "Construye en una rama, con pruebas."),
     ("qa", "ANGELA", "QA", "Rigurosa: rompe y audita (pruebas + ataques)."),
     ("reviewer", "OSCAR", "Reviewer", "Corrige y da el veredicto final."),
+    ("seguridad", "HANK", "Seguridad", "Audita amenazas, fugas y herramientas de terceros."),
     ("personalidad", "KELLY", "Ánimo", "Medirá cómo respondes y tu estado de ánimo para adaptar el tono. (en diseño)"),
 ]
-AVATARES = {"eva": "★", "planner": "✎", "developer": "⌨", "qa": "⚑", "reviewer": "◎", "personalidad": "♥"}
+AVATARES = {"eva": "★", "planner": "✎", "developer": "⌨", "qa": "⚑", "reviewer": "◎",
+            "seguridad": "⛨", "personalidad": "♥"}
 # Sección del handoff que marca que cada agente ya aportó.
 APORTE = {"planner": "Plan", "developer": "Cambios", "qa": "Pruebas", "reviewer": "Revisión"}
 
@@ -139,6 +141,10 @@ ul.lista{margin:0;padding-left:18px;line-height:1.9;color:var(--muted)}
 .reg{background:#040704;border:1px solid var(--line);padding:12px 14px;font-size:12.5px;color:var(--grn);max-height:200px;overflow:auto}
 .reg .ln{padding:2px 0;border-bottom:1px dotted var(--line)}
 .reg .ln::before{content:'> ';color:var(--grn-dim)}
+.temas{display:flex;gap:9px;margin-top:10px;align-items:center}
+.temas span{font-size:10px;color:var(--muted)}
+.temas button{width:16px;height:16px;border-radius:50%;border:1px solid var(--line);cursor:pointer;padding:0}
+.temas button[data-tema=verde]{background:#4dff91}.temas button[data-tema=azul]{background:#4db8ff}.temas button[data-tema=morado]{background:#b78cff}
 @media(max-width:720px){.app{flex-direction:column}.side{width:100%;height:auto;position:static}.menu{flex-direction:row;flex-wrap:wrap}.item{width:auto}.grp{width:100%}.side .pie{display:none}}
 """
 
@@ -153,6 +159,8 @@ ICONOS = {
     "escritorio": '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
     "github": '<circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="9" r="2.4"/><path d="M6 8.4v7M18 11.4c0 3-4 3-9.5 5"/>',
     "kali": '<path d="M4 17l6-6-6-6M12 19h8"/>',
+    "contador": '<path d="M4 20a8 8 0 1 1 16 0"/><path d="M12 20l4-6"/><circle cx="12" cy="20" r="1.3"/>',
+    "seguridad": '<path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/>',
     "mejoras": '<path d="M12 3a6 6 0 0 0-4 10c1 1 1 2 1 3h6c0-1 0-2 1-3a6 6 0 0 0-4-10zM9 20h6"/>',
     "despliegue": '<rect x="6" y="6" width="12" height="12" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>',
     "aprende": '<path d="M4 5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2zM8 7h8M8 11h6"/>',
@@ -168,6 +176,8 @@ META = {
     "escritorio": ("ESCRITORIO", "Qué conviene ordenar · Eva no mueve nada"),
     "github": ("GITHUB", "Tus repositorios y qué les falta"),
     "kali": ("KALI // HTB", "La máquina virtual y la guía de la VPN"),
+    "contador": ("CONTADOR", "Energía del chat → Lempiras"),
+    "seguridad": ("SEGURIDAD", "Hank audita amenazas y fugas"),
     "mejoras": ("MEJORAS", "Aprendizaje: IA, agentes, infraestructura"),
     "despliegue": ("DESPLIEGUE", "App en contenedor / Raspberry Pi 4"),
     "aprende": ("MANUAL", "Arquitectura, DDD y seguridad"),
@@ -176,6 +186,7 @@ GRUPOS = [
     ("", ["eva", "oficina"]),
     ("perfil", ["perfiles", "cv", "portafolio", "contenido"]),
     ("sistema", ["tareas", "escritorio", "github", "kali"]),
+    ("control", ["contador", "seguridad"]),
     ("laboratorio", ["mejoras", "despliegue", "aprende"]),
 ]
 PRIO_SEL = {1: "alta", 2: "media", 3: "baja"}
@@ -276,6 +287,7 @@ def _estado_agentes(texto):
             estados[clave] = ("off", "EN ESPERA")
     terminado = all(estados[c][0] == "ok" for c in ("planner", "developer", "qa", "reviewer"))
     estados["eva"] = ("ok", "COORDINANDO") if texto else ("off", "EN ESPERA")
+    estados["seguridad"] = ("ok", "VIGILANDO")
     estados["personalidad"] = ("design", "EN DISEÑO")
     return estados, terminado
 
@@ -367,6 +379,8 @@ def frag_oficina():
         clase, etiqueta = estados[clave]
         if clave == "eva":
             tarea = f"Coordina: {ws}" if texto else "A la espera de un pedido."
+        elif clave == "seguridad":
+            tarea = "Vigila el sistema en todo momento. Ver módulo Seguridad."
         elif clave == "personalidad":
             tarea = "Apartado futuro: tono y estado de ánimo."
         elif clase == "ok":
@@ -456,6 +470,47 @@ def frag_contenido():
     return _frag_md("modulos/contenido.md", "Sin plan de contenido todavía.")
 
 
+def frag_contador():
+    from . import contador
+    r = contador.resumen()
+    return f"""
+<div class="tiles">
+  <div class="tile"><div class="lbl">Consultas</div><div class="val">{r['consultas']}</div><div class="det">al chat de Eva</div></div>
+  <div class="tile"><div class="lbl">Energía</div><div class="val">{r['kwh']:.4f}</div><div class="det">kWh acumulados</div></div>
+  <div class="tile"><div class="lbl">Costo</div><div class="val">L {r['lps']:.2f}</div><div class="det">{r['lps_por_consulta']:.4f} L/consulta</div></div>
+</div>
+<div class="card"><h2>Contador de energía</h2>
+<p class="muted">Estima el consumo del chat (Ollama corre el modelo en tu equipo): tiempo real de cómputo × {r['watts']:.0f} W asumidos, a L {r['lps_kwh']:.2f}/kWh. Ajusta <code>energia</code> en config.json.</p>
+<div class="fila"><span class="grow">Tiempo de cómputo acumulado</span><span>{r['segundos'] / 60:.1f} min</span></div>
+<div class="fila"><span class="grow">Watts asumidos</span><span>{r['watts']:.0f} W</span></div>
+<div class="fila"><span class="grow">Tarifa</span><span>L {r['lps_kwh']:.2f} / kWh</span></div>
+<div class="fila"><span class="grow">Midiendo desde</span><span class="muted">{_esc(r['desde'])}</span></div></div>
+<div class="card"><h2>Conversor kWh → Lempiras</h2>
+<div class="ftarea"><input id="conv" type="number" step="0.1" placeholder="kWh" data-lps="{r['lps_kwh']}"><span id="convout" class="muted">= L 0.00</span></div>
+<p class="muted">Referencia: una hora de chat continuo ≈ {r['watts'] / 1000:.3f} kWh ≈ L {r['watts'] / 1000 * r['lps_kwh']:.3f}. Útil para ver si sale rentable.</p></div>"""
+
+
+def frag_seguridad():
+    from . import seguridad
+    try:
+        checks = seguridad.auditar()
+        ver = seguridad.veredicto(checks)
+    except Exception:
+        return '<div class="card"><p class="warn">No pude completar la auditoría.</p></div>'
+    filas = []
+    for nombre, estado, detalle in checks:
+        cls = "ok" if estado == "ok" else "warn"
+        simbolo = "✓" if estado == "ok" else ("!" if estado == "warn" else "✕")
+        filas.append(f'<div class="fila"><span class="{cls}" style="flex:0 0 18px">{simbolo}</span>'
+                     f'<span class="grow">{_esc(nombre)}</span><span class="muted">{_esc(detalle)}</span></div>')
+    titulo = {"seguro": "SISTEMA SEGURO", "atencion": "REVISAR AVISOS", "alerta": "⚠ ATENCIÓN"}[ver]
+    return (f'<div class="tiles"><div class="tile"><div class="lbl">Veredicto de Hank</div>'
+            f'<div class="val" style="font-size:18px;margin-top:9px">{titulo}</div></div></div>'
+            f'<div class="card"><h2>Auditoría de seguridad</h2>'
+            f'<p class="muted">Revisa que Eva no tenga amenazas, no filtre información ni use herramientas de terceros que afecten. Solo lee el código local; no se conecta a nada.</p>'
+            f'{"".join(filas)}</div>')
+
+
 def frag_mejoras():
     return _frag_md("modulos/mejoras.md", "Sin roadmap de mejoras todavía.")
 
@@ -498,6 +553,7 @@ SECCIONES = {
     "eva": frag_eva, "oficina": frag_oficina, "perfiles": frag_perfiles, "cv": frag_cv,
     "portafolio": frag_portafolio, "contenido": frag_contenido, "tareas": frag_tareas,
     "escritorio": frag_escritorio, "github": frag_github, "kali": frag_kali,
+    "contador": frag_contador, "seguridad": frag_seguridad,
     "mejoras": frag_mejoras, "despliegue": frag_despliegue, "aprende": frag_aprende,
 }
 
@@ -551,7 +607,8 @@ def shell():
 <style>{ESTILO}</style></head><body><div class="crt"></div><div class="app">
 <nav class="side"><div class="brand"><b>EVA<span class="cursor"></span></b><span>v{_esc(__version__)} · sistema local</span></div>
 <div class="menu">{_menu()}</div>
-<div class="pie">[ TERMINAL LOCAL ]<br>nada sale de tu equipo.</div></nav>
+<div class="pie">[ TERMINAL LOCAL ]<br>nada sale de tu equipo.
+<div class="temas"><span>tema</span><button data-tema="verde" title="verde"></button><button data-tema="azul" title="azul"></button><button data-tema="morado" title="morado"></button></div></div></nav>
 <div class="main"><div class="top"><h1 id="st">EVA</h1><p id="ss">Háblale y ella hace las cosas</p></div>
 <div class="cont" id="cont"><p class="cargando">cargando…</p></div></div></div>
 <script>
@@ -584,7 +641,18 @@ function activar(){{
   const cf=document.getElementById('chatform');
   if(cf){{cf.addEventListener('submit',e=>{{e.preventDefault();enviarChat(document.getElementById('chatin').value);}});
     cont.querySelectorAll('.sug').forEach(b=>b.addEventListener('click',()=>enviarChat(b.textContent)));pintarChat();}}
+  const cv=document.getElementById('conv');
+  if(cv)cv.addEventListener('input',()=>{{const l=parseFloat(cv.dataset.lps)||0,k=parseFloat(cv.value)||0;
+    document.getElementById('convout').textContent='= L '+(k*l).toFixed(2);}});
 }}
+const TEMAS={{verde:{{grn:'#4dff91',dim:'#1f6b42',glow:'rgba(77,255,145,.55)',ink:'#bdf5d2',muted:'#5c8a6d'}},
+azul:{{grn:'#4db8ff',dim:'#1f5a7a',glow:'rgba(77,184,255,.55)',ink:'#bfe3ff',muted:'#5c7f9a'}},
+morado:{{grn:'#b78cff',dim:'#5a3f8a',glow:'rgba(183,140,255,.55)',ink:'#e0d2ff',muted:'#8a7cab'}}}};
+function tema(n){{const t=TEMAS[n]||TEMAS.verde,r=document.documentElement.style;
+  r.setProperty('--grn',t.grn);r.setProperty('--grn-dim',t.dim);r.setProperty('--glow',t.glow);
+  r.setProperty('--ink',t.ink);r.setProperty('--muted',t.muted);try{{localStorage.setItem('eva-tema',n);}}catch(_){{}}}}
+document.querySelectorAll('.temas button').forEach(b=>b.addEventListener('click',()=>tema(b.dataset.tema)));
+try{{tema(localStorage.getItem('eva-tema')||'verde');}}catch(_){{tema('verde');}}
 async function cargar(sec){{if(!META[sec])sec='eva';SEC=sec;
   document.querySelectorAll('.item').forEach(a=>a.classList.toggle('activo',a.dataset.sec===sec));
   st.textContent=META[sec][0];ss.textContent=META[sec][1];
