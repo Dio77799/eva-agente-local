@@ -55,6 +55,13 @@ class Fragmentos(unittest.TestCase):
         self.assertEqual(estados["reviewer"][0], "off")
         self.assertFalse(terminado)
 
+    def test_placeholder_no_cuenta_como_aporte(self):
+        # "(pendiente reviewer)" no debe marcar al reviewer como LISTO.
+        texto = "## Plan\nx\n## Cambios\ny\n## Pruebas\nz\n## Revisión\n(pendiente reviewer)\n"
+        estados, terminado = servidor._estado_agentes(texto)
+        self.assertEqual(estados["reviewer"][0], "work")
+        self.assertFalse(terminado)
+
     def test_markdown_min_escapa(self):
         html = servidor._markdown_min("## Título\n- <b>x</b>\n| a | b |")
         self.assertIn("<h2>Título</h2>", html)

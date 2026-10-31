@@ -11,7 +11,6 @@ import http.server
 import json
 import re
 import secrets
-import socketserver
 from pathlib import Path
 
 from . import __version__, escritorio, kali, tareas
@@ -224,7 +223,12 @@ def _ultimo_handoff():
 
 def _seccion_llena(texto, titulo):
     m = re.search(rf"^##\s*{re.escape(titulo)}\b(.*?)(?=^##\s|\Z)", texto, re.S | re.M)
-    return bool(m and m.group(1).strip())
+    if not m:
+        return False
+    # Una línea que es solo un placeholder entre paréntesis "(pendiente ...)" no cuenta.
+    reales = [ln.strip() for ln in m.group(1).splitlines()
+              if ln.strip() and not re.fullmatch(r"\(.*\)", ln.strip())]
+    return bool(reales)
 
 
 def _estado_agentes(texto):
@@ -600,7 +604,8 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
 def iniciar(puerto=8750):
     # Solo 127.0.0.1: nunca accesible desde otra máquina de la red.
-    with socketserver.TCPServer(("127.0.0.1", puerto), _Handler) as s:
+    # Multihilo: una petición lenta (el chat esperando a Ollama) no congela el panel.
+    with http.server.ThreadingHTTPServer(("127.0.0.1", puerto), _Handler) as s:
         print(f"Eva está en http://127.0.0.1:{puerto}  (Ctrl+C para detener)")
         try:
             s.serve_forever()
