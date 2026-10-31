@@ -44,6 +44,35 @@ def generar(prompt):
     return r["message"]["content"]
 
 
+def descargar_modelo():
+    """Libera el modelo de la memoria (keep_alive 0) para ahorrar energía al salir del chat.
+
+    Devuelve True si Ollama confirmó la descarga, False si no respondió.
+    """
+    try:
+        _post("/api/generate", {"model": config()["ollama"]["modelo"], "keep_alive": 0}, timeout=10)
+        return True
+    except (urllib.error.URLError, OSError, KeyError, ValueError):
+        return False  # si Ollama ya no está o no responde, no pasa nada
+
+
+def _ejecutar(funciones, nombre, args):
+    """Ejecuta una herramienta y devuelve texto SEGURO para el modelo.
+
+    El error real (que puede traer rutas, stderr de `gh` u otros datos) se registra en
+    la bitácora local, nunca se le pasa al modelo (NORMAS §3.9). `args` puede no ser un
+    dict si el modelo lo manda mal: el try lo cubre.
+    """
+    fn = funciones.get(nombre)
+    if fn is None:
+        return f"No existe la herramienta {nombre}."
+    try:
+        return str(fn(**args))
+    except Exception as e:
+        bitacora("herramienta_error", nombre=nombre, tipo=type(e).__name__)
+        return f"La herramienta {nombre} no se pudo ejecutar ahora."
+
+
 def _herramientas():
     """Herramientas que el modelo puede usar. Se importan aquí para evitar ciclos.
 
@@ -152,10 +181,11 @@ def conversar():
                 break
             for ll in llamadas:
                 nombre, args = ll["function"]["name"], ll["function"].get("arguments") or {}
-                try:
-                    salida = str(funciones[nombre](**args))
-                except Exception as e:  # el modelo pudo mandar argumentos inválidos
-                    salida = f"Error en {nombre}: {e}"
+                salida = _ejecutar(funciones, nombre, args if isinstance(args, dict) else {})
                 bitacora("herramienta", nombre=nombre, args=args)
                 mensajes.append({"role": "tool", "tool_name": nombre, "content": salida})
         print(f"\nEva > {r.get('content', '').strip()}\n")
+    if descargar_modelo():
+        print("Modelo liberado de memoria para ahorrar energía. Hasta luego.")
+    else:
+        print("Hasta luego. (No pude confirmar la descarga del modelo; revisa Ollama.)")

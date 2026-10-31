@@ -6,6 +6,7 @@ la lista de privados y no se detectan archivos/datos sensibles dentro.
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 from .comun import bitacora, config, expandir
@@ -119,7 +120,11 @@ def repos_github():
          "name,visibility,description,repositoryTopics,homepageUrl,updatedAt,isFork"],
         capture_output=True, text=True, encoding="utf-8")
     if r.returncode != 0:
-        raise RuntimeError("gh no respondió (¿`gh auth login`?): " + r.stderr.strip())
+        # El detalle (stderr de gh) puede traer rutas o pistas de token: va solo a la
+        # consola del operador (NORMAS §3.9), nunca a la excepción que podría llegar al modelo.
+        if r.stderr.strip():
+            print("gh:", r.stderr.strip(), file=sys.stderr)
+        raise RuntimeError("No se pudo consultar GitHub con gh (revisa `gh auth status`).")
     repos = json.loads(r.stdout)
     for repo in repos:
         faltas = []
