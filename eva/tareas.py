@@ -1,54 +1,40 @@
-"""Gestor de tareas sencillo guardado en data/tareas.json."""
-from .comun import ahora, bitacora, guardar_json, leer_json
+"""Fachada de tareas: mantiene la API que usa el resto de Eva (CLI, chat, web) y
+delega en las capas dominio/aplicación/infraestructura (piloto DDD-lite).
 
-AREAS = ("general", "escritorio", "github", "htb", "contenido", "estudio")
-PRIORIDAD = {1: "alta", 2: "media", 3: "baja"}
+Quien llame a `tareas.agregar/listar/completar/formato` no cambia: sigue recibiendo
+los mismos dicts. Debajo, la lógica vive ahora en capas separadas y probables solas.
+"""
+from .aplicacion.servicio_tareas import ServicioTareas
+from .comun import ahora, bitacora
+from .dominio.tarea import Area, Prioridad
+from .infraestructura.repo_tareas_json import RepositorioTareasJSON
+
+AREAS = tuple(a.value for a in Area)
+PRIORIDAD = {int(p): p.name.lower() for p in Prioridad}
 
 
-def _cargar():
-    return leer_json("tareas.json", [])
+def _servicio():
+    return ServicioTareas(RepositorioTareasJSON(), ahora)
 
 
 def agregar(titulo, area="general", prioridad=2, notas=""):
-    tareas = _cargar()
-    # Evita duplicados exactos pendientes (útil cuando otros módulos crean tareas)
-    for t in tareas:
-        if t["titulo"].lower() == titulo.lower() and t["estado"] == "pendiente":
-            return t
-    nueva = {
-        "id": max((t["id"] for t in tareas), default=0) + 1,
-        "titulo": titulo,
-        "area": area if area in AREAS else "general",
-        "prioridad": int(prioridad),
-        "estado": "pendiente",
-        "creada": ahora(),
-        "hecha": None,
-        "notas": notas,
-    }
-    tareas.append(nueva)
-    guardar_json("tareas.json", tareas)
-    bitacora("tarea_agregada", id=nueva["id"], titulo=titulo, area=nueva["area"])
-    return nueva
+    servicio = _servicio()
+    antes = {t.id for t in servicio.repo.listar()}
+    t = servicio.agregar(titulo, area, prioridad, notas)
+    if t.id not in antes:  # si era un duplicado, no se registra de nuevo
+        bitacora("tarea_agregada", id=t.id, titulo=t.titulo, area=t.area.value)
+    return t.a_dict()
 
 
 def listar(area=None, todas=False):
-    tareas = _cargar()
-    if area:
-        tareas = [t for t in tareas if t["area"] == area]
-    if not todas:
-        tareas = [t for t in tareas if t["estado"] == "pendiente"]
-    return sorted(tareas, key=lambda t: (t["estado"] != "pendiente", t["prioridad"], t["id"]))
+    return [t.a_dict() for t in _servicio().listar(area, todas)]
 
 
 def completar(id_tarea):
-    tareas = _cargar()
-    for t in tareas:
-        if t["id"] == int(id_tarea):
-            t["estado"], t["hecha"] = "hecha", ahora()
-            guardar_json("tareas.json", tareas)
-            bitacora("tarea_completada", id=t["id"], titulo=t["titulo"])
-            return t
-    return None
+    t = _servicio().completar(id_tarea, ahora())
+    if t:
+        bitacora("tarea_completada", id=t.id, titulo=t.titulo)
+    return t.a_dict() if t else None
 
 
 def formato(t):
