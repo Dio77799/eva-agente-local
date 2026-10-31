@@ -17,8 +17,14 @@ class Shell(unittest.TestCase):
 
     def test_secciones_y_acciones_esperadas(self):
         self.assertEqual(set(servidor.SECCIONES),
-                         {"eva", "oficina", "tareas", "escritorio", "github", "kali", "perfiles", "aprende"})
+                         {"eva", "oficina", "perfiles", "cv", "portafolio", "contenido", "tareas",
+                          "escritorio", "github", "kali", "mejoras", "despliegue", "aprende"})
         self.assertEqual(set(servidor.ACCIONES), {"chat", "tarea_agregar", "tarea_completar"})
+
+    def test_todas_las_secciones_en_el_menu(self):
+        html = servidor.shell()
+        for sec in servidor.SECCIONES:
+            self.assertIn(f'data-sec="{sec}"', html)
 
 
 class Fragmentos(unittest.TestCase):
@@ -39,11 +45,15 @@ class Fragmentos(unittest.TestCase):
         html = servidor.frag_perfiles()            # no hay tracker en la carpeta temporal
         self.assertIn("tracker", html.lower())
 
-    def test_oficina_lista_a_los_agentes(self):
+    def test_oficina_usa_apodos_de_los_agentes(self):
         html = servidor.frag_oficina()
         self.assertIn("Oficina de agentes", html)
-        for nombre in ("EVA", "PLANNER", "DEVELOPER", "QA", "REVIEWER"):
-            self.assertIn(nombre, html)
+        for apodo in ("MICHAEL", "DWIGHT", "JIM", "ANGELA", "OSCAR", "KELLY"):
+            self.assertIn(apodo, html)
+
+    def test_estado_personalidad_en_diseno(self):
+        estados, _ = servidor._estado_agentes("## Plan\nx\n")
+        self.assertEqual(estados["personalidad"][0], "design")
 
     def test_estado_agentes_segun_handoff(self):
         # Un handoff con Plan y Cambios llenos -> planner/developer LISTO, qa EN TURNO.
