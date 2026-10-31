@@ -409,6 +409,9 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(datos)
 
     def do_GET(self):
+        if not self._local():   # no servir la página (que lleva el token) a un Host no local
+            self.send_error(403, "Solo local")
+            return
         ruta = self.path.split("?")[0].rstrip("/") or "/"
         if ruta == "/":
             self._responder(shell())

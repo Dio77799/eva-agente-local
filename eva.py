@@ -109,7 +109,7 @@ def main():
     h.add_argument("--sistema", default="")
     h.add_argument("--llm", action="store_true", help="pulir el post con Ollama")
 
-    sub.add_parser("servidor", help="abrir el panel web local (solo lectura)").add_argument(
+    sub.add_parser("servidor", help="abrir el panel web local interactivo (chat + tareas)").add_argument(
         "--puerto", type=int, default=8750)
 
     a = p.parse_args()
