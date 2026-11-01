@@ -66,9 +66,9 @@ class Fragmentos(unittest.TestCase):
         for apodo in ("MICHAEL", "DWIGHT", "JIM", "ANGELA", "OSCAR", "KELLY"):
             self.assertIn(apodo, html)
 
-    def test_estado_personalidad_en_diseno(self):
+    def test_estado_personalidad_activa(self):
         estados, _ = servidor._estado_agentes("## Plan\nx\n")
-        self.assertEqual(estados["personalidad"][0], "design")
+        self.assertEqual(estados["personalidad"][0], "ok")
         self.assertEqual(estados["seguridad"][0], "ok")  # Hank siempre vigilando
 
     def test_contador_registra_y_convierte(self):
@@ -146,6 +146,13 @@ class Seguridad(unittest.TestCase):
 
     def test_token_no_trivial(self):
         self.assertGreaterEqual(len(servidor.TOKEN), 16)
+
+
+class PuertoUnico(unittest.TestCase):
+    def test_no_comparte_puerto_con_otro_panel(self):
+        # En Windows, SO_REUSEADDR dejaba a dos paneles en el mismo puerto (tokens distintos -> 403).
+        from eva import servidor
+        self.assertFalse(servidor._Servidor.allow_reuse_address)
 
 
 if __name__ == "__main__":

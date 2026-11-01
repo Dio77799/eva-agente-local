@@ -86,7 +86,16 @@ def _herramientas():
         return tareas.formato(tareas.agregar(titulo, area, prioridad))
 
     def listar_tareas(area=None):
-        return "\n".join(tareas.formato(t) for t in tareas.listar(area)) or "Sin pendientes."
+        # El modelo suele rellenar `area` aunque el usuario no la pida ("general"): si el
+        # filtro sale vacío, se muestran TODAS en vez de responder "0 pendientes" por error.
+        filtradas = tareas.listar(area) if area in tareas.AREAS else []
+        if filtradas:
+            return "\n".join(tareas.formato(t) for t in filtradas)
+        todas = tareas.listar()
+        if not todas:
+            return "Sin pendientes."
+        aviso = f"Sin pendientes en '{area}'. " if area in tareas.AREAS else ""
+        return aviso + f"Todas las pendientes ({len(todas)}):\n" + "\n".join(tareas.formato(t) for t in todas)
 
     def completar_tarea(id):
         t = tareas.completar(id)
@@ -126,7 +135,7 @@ def _herramientas():
         "agregar_tarea": (agregar_tarea, "Crea una tarea pendiente",
                           {"titulo": "string", "area": "string", "prioridad": "integer"}, ["titulo"]),
         "listar_tareas": (listar_tareas, "Lista tareas pendientes, opcionalmente por área "
-                          "(general, escritorio, github, htb, contenido, estudio)",
+                          "(general, escritorio, github, htb, contenido, estudio). Omite el área para verlas todas.",
                           {"area": "string"}, []),
         "completar_tarea": (completar_tarea, "Marca una tarea como hecha por id",
                             {"id": "integer"}, ["id"]),
@@ -181,7 +190,10 @@ def responder(historial):
     funciones, esquemas = _herramientas()
     limpio = [{"role": m["role"], "content": str(m.get("content", ""))[:4000]}
               for m in (historial or []) if m.get("role") in ("user", "assistant") and m.get("content")]
-    mensajes = [{"role": "system", "content": SISTEMA}] + limpio[-20:]
+    from . import kelly  # KELLY: ajusta el tono según cómo escribe el usuario
+    _, linea_tono = kelly.ajustar(limpio)
+    sistema = SISTEMA + (" " + linea_tono if linea_tono else "")
+    mensajes = [{"role": "system", "content": sistema}] + limpio[-20:]
     import time
     t0 = time.monotonic()
     try:

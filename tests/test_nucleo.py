@@ -92,6 +92,14 @@ class HerramientasChat(unittest.TestCase):
         funciones, _ = llm._herramientas()
         self.assertIn("instalador", funciones["analizar_escritorio"]())
 
+    def test_listar_tareas_con_area_vacia_muestra_todas(self):
+        # Regresión: qwen3 rellenaba area="general" y Eva decía "0 tareas" teniendo pendientes.
+        t = tareas.agregar("Publicar post de prueba", "contenido", 2)
+        salida = llm._herramientas()[0]["listar_tareas"]("general")
+        self.assertIn("Publicar post de prueba", salida)
+        self.assertIn("Sin pendientes en 'general'", salida)
+        tareas.completar(t["id"])
+
 
 if __name__ == "__main__":
     unittest.main()

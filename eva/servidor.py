@@ -6,6 +6,7 @@ acciones de bajo impacto (tareas) y ver la OFICINA DE AGENTES (con apodos) y los
 perfil (CV, portafolio, contenido), mejoras y despliegue. Acciones por POST /accion/<nombre>
 con un token que solo conoce esta página (anti-CSRF) y validando Host local; todo se escapa.
 """
+import errno
 import html
 import http.server
 import json
@@ -13,7 +14,7 @@ import re
 import secrets
 from pathlib import Path
 
-from . import __version__, escritorio, kali, tareas
+from . import __version__, escritorio, kali, kelly, tareas
 from .comun import DATOS, config, expandir
 
 TOKEN = secrets.token_urlsafe(18)
@@ -30,7 +31,7 @@ ROLES = [
     ("qa", "ANGELA", "QA", "Rigurosa: rompe y audita (pruebas + ataques)."),
     ("reviewer", "OSCAR", "Reviewer", "Corrige y da el veredicto final."),
     ("seguridad", "HANK", "Seguridad", "Audita amenazas, fugas y herramientas de terceros."),
-    ("personalidad", "KELLY", "Ánimo", "Medirá cómo respondes y tu estado de ánimo para adaptar el tono. (en diseño)"),
+    ("personalidad", "KELLY", "Ánimo", "Lee cómo escribes en el chat y adapta el tono de Eva (solo reglas locales, sin guardar tu texto)."),
 ]
 AVATARES = {"eva": "★", "planner": "✎", "developer": "⌨", "qa": "⚑", "reviewer": "◎",
             "seguridad": "⛨", "personalidad": "♥"}
@@ -294,7 +295,7 @@ def _estado_agentes(texto):
     terminado = all(estados[c][0] == "ok" for c in ("planner", "developer", "qa", "reviewer"))
     estados["eva"] = ("ok", "COORDINANDO") if texto else ("off", "EN ESPERA")
     estados["seguridad"] = ("ok", "VIGILANDO")
-    estados["personalidad"] = ("design", "EN DISEÑO")
+    estados["personalidad"] = ("ok", "LEYENDO")
     return estados, terminado
 
 
@@ -388,7 +389,9 @@ def frag_oficina():
         elif clave == "seguridad":
             tarea = "Vigila el sistema en todo momento. Ver módulo Seguridad."
         elif clave == "personalidad":
-            tarea = "Apartado futuro: tono y estado de ánimo."
+            k = kelly.estado()
+            tarea = (f"Última lectura: {_esc(k['ultimo'])} · {sum(k.get('conteos', {}).values())} mensajes leídos."
+                     if k.get("ultimo") else "Aún no ha leído mensajes: habla con Eva en el chat.")
         elif clase == "ok":
             tarea = "✓ Aportó a este workstream."
         elif clase == "work":
@@ -411,7 +414,7 @@ def frag_oficina():
   <div class="tile"><div class="lbl">Build</div><div class="val">v{_esc(__version__)}</div><div class="det">main</div></div>
 </div>
 <div class="card"><h2>Oficina de agentes</h2>
-<p class="muted">Eva es la plataforma; estos son sus agentes (con apodo). El semáforo indica quién ya aportó (verde), quién está en turno (ámbar) y quién espera. KELLY (ánimo) está en diseño.</p>
+<p class="muted">Eva es la plataforma; estos son sus agentes (con apodo). El semáforo indica quién ya aportó (verde), quién está en turno (ámbar) y quién espera. KELLY (ánimo) lee tus mensajes del chat y ajusta el tono.</p>
 <div class="desks">{"".join(desks)}</div></div>
 <div class="card"><h2>Registro de actividad</h2><div class="reg">{feed}</div></div>"""
 
@@ -656,7 +659,7 @@ async function enviarChat(txt){{txt=(txt||'').trim();if(!txt)return;
   CHAT.push({{role:'assistant',content:'…'}});pintarChat();if(inp){{inp.value='';inp.disabled=true;}}
   try{{const res=await accion('chat',{{historial:CHAT.filter(m=>m.content!=='…')}});
     CHAT[CHAT.length-1]={{role:'assistant',content:res.texto||res.error||'(sin respuesta)'}};}}
-  catch(e){{CHAT[CHAT.length-1]={{role:'assistant',content:'No pude responder (¿Ollama encendido?).'}};}}
+  catch(e){{CHAT[CHAT.length-1]={{role:'assistant',content:e.message==='403'?'Sesión vencida: recarga la página (F5).':'No pude responder (¿el panel sigue abierto?).'}};}}
   pintarChat();if(inp){{inp.disabled=false;inp.focus();}}}}
 function activar(){{
   const chips=cont.querySelectorAll('.chip');
@@ -777,10 +780,24 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         pass
 
 
+class _Servidor(http.server.ThreadingHTTPServer):
+    # En Windows, SO_REUSEADDR deja que DOS paneles escuchen el mismo puerto: cada uno
+    # tiene su propio TOKEN y el chat fallaba con 403 al azar. Un solo dueño del puerto.
+    allow_reuse_address = False
+
+
 def iniciar(puerto=8750):
     # Solo 127.0.0.1: nunca accesible desde otra máquina de la red.
     # Multihilo: una petición lenta (el chat esperando a Ollama) no congela el panel.
-    with http.server.ThreadingHTTPServer(("127.0.0.1", puerto), _Handler) as s:
+    try:
+        s = _Servidor(("127.0.0.1", puerto), _Handler)
+    except OSError as e:
+        if e.errno in (errno.EADDRINUSE, 10048):  # 10048 = WSAEADDRINUSE en Windows
+            print(f"Ya hay un panel de Eva en http://127.0.0.1:{puerto} (ábrelo ahí; no inicio otro).")
+        else:
+            print(f"No pude abrir el puerto {puerto}: {e}")
+        raise SystemExit(1)
+    with s:
         print(f"Eva está en http://127.0.0.1:{puerto}  (Ctrl+C para detener)")
         try:
             s.serve_forever()
